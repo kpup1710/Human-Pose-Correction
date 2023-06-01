@@ -51,7 +51,7 @@ def accuracy(outputs, labels):
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
 
-def train_corrector(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, lr=None, metric=None, PATH='/content/drive/MyDrive/test/best_corrector.pth'):
+def train_corrector(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, lr=None, metric=None, PATH=''):
     train_losses, val_losses, val_metrics = [], [], []
     max_val_acc = 0
     torch.cuda.empty_cache()
@@ -74,7 +74,7 @@ def train_corrector(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, l
         sched.step(val_loss)
 
         if max_val_acc < val_metric:
-          torch.save(model.corrector.state_dict(), PATH)
+          torch.save(model.corrector.state_dict(), PATH + 'best_corrector.pth')
 
         # Record the loss and metric
         train_losses.append(train_loss)

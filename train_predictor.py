@@ -47,7 +47,7 @@ def accuracy(outputs, labels):
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
 
-def train_predictor(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, lr=None, metric=None, PATH='/content/drive/MyDrive/test/best_predictor.pth'):
+def train_predictor(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, lr=None, metric=None, PATH=''):
     train_losses, val_losses, val_metrics = [], [], []
     torch.cuda.empty_cache()
     # Instantiate the optimizer
@@ -67,7 +67,7 @@ def train_predictor(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, l
         result = evaluate(model, loss_func=loss_func, valid_dl=valid_dl, metric=metric)
         val_loss, total, val_metric = result
         if max_val_acc < val_metric:
-          torch.save(model.state_dict(), PATH)
+          torch.save(model.state_dict(), PATH+'best_predictor.pth')
         sched.step(val_loss)
         # Record the loss and metric
         train_losses.append(train_loss)

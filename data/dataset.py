@@ -9,10 +9,15 @@ import numpy as np
 
 class TrainDataset(Dataset):
 
-    def __init__(self, json_path: str) -> None:
+    def __init__(self, json_path: str, name='workout') -> None:
         super(TrainDataset, self).__init__()
         self.json_path = json_path
+        self.pose = 'pose'
         self.img_list = self.get_img_list()
+        if name == 'yoga':
+            self.pose = 'pose'
+        elif name == 'workout':
+            self.pose = 'label'
         # self.transforms = transforms
         self.label_to_index, self.num_classes = self.classes_to_idx()
 
@@ -26,7 +31,7 @@ class TrainDataset(Dataset):
         index = 0
         for item in self.img_list:
             # print(item)
-            label = item['label']
+            label = item[self.pose]
             if label not in label_to_index:
                 label_to_index[label] = index
                 index += 1
@@ -37,7 +42,7 @@ class TrainDataset(Dataset):
 
     def __getitem__(self, index):
         a_img = self.img_list[index]
-        a_label = a_img['label']
+        a_label = a_img[self.pose]
         a_pose = a_img['pose_landmarks']
 
         a_pose_tensor = self.get_pose_tensor(a_pose)
