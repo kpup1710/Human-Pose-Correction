@@ -3,7 +3,9 @@ import numpy as np
 import logging
 from utils import *
 
-logger = logging.getLogger('base')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 def loss_batch_2(model, loss_func, xb, yb, opt=None, metric=None, device='cuda'):
     # Generate predictions
     yb_oh = to_onehot(yb, 22).unsqueeze(1).to(device)

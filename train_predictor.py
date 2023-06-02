@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import os 
 import numpy as np
-import tqdm as tqdm
+from tqdm import tqdm
 import logging
 
-logger = logging.getLogger('base')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 def loss_batch(model, loss_func, xb, yb, opt=None, metric=None):
     # Generate predictions
@@ -62,7 +63,7 @@ def train_predictor(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, l
     for epoch in range(epochs):
         # Training
         model.train()
-        for xb, yb in train_dl:
+        for xb, yb in tqdm(train_dl):
             train_loss,_,_ = loss_batch(model, loss_func, xb, yb, opt)
 
         # Evaluation

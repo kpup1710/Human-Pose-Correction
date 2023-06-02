@@ -1,5 +1,6 @@
 import torch.nn.functional as F
 import torch
+import os
 import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.dataloader import DataLoader
@@ -15,9 +16,9 @@ if __name__ == "__main__":
   # Experiment options
   parser = argparse.ArgumentParser()
   parser.add_argument('--name', type=str, default='workout')
-  parser.add_argument('--data_path', type=str, default='config/sr_sr3_16_128.json',
+  parser.add_argument('--data_path', type=str, default='dataset/workout_processed_data.json',
                         help='JSON file for data')
-  parser.add_argument('--noised_data_path',type=str, default='config/sr_sr3_16_128.json',
+  parser.add_argument('--noised_data_path',type=str, default='dataset/noised_workout.json',
                         help='JSON file for noised data')
   parser.add_argument('-p', '--phase', type=str, choices=['train', 'val'],
                         help='Run either train(training) or val(generation)', default='train')
@@ -52,8 +53,17 @@ if __name__ == "__main__":
   args = parser.parse_args()
   device = args.device
   checkpoints_path = f'checkpoints/' + args.name + '/'
+  if not os.path.exists(checkpoints_path):
+    os.makedirs(checkpoints_path)
 
-  logger = logging.getLogger('base')
+  FORMAT = '%(asctime)s %(message)s'
+  logging.basicConfig(format=FORMAT)
+  d = {'clientip': '192.168.0.1', 'user': 'fbloggs'}
+# logging.basicConfig()
+  logger = logging.getLogger(__name__)
+  logger.setLevel(logging.INFO)
+  # logger.info('Protocol problem: %s', 'connection reset', extra=d)
+  
   edge = [ [1, 1, 2, 3, 5, 6, 1, 8, 9, 1, 11, 12, 1, 0, 14, 0, 15, 2, 5],  
     [2, 5, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 0, 14, 16, 15, 17, 16, 17],
     ]
@@ -65,7 +75,7 @@ if __name__ == "__main__":
   
 
   device = get_default_device()
-  logger.info(str(device) + "is available")
+  logger.info(str(device) + " is available")
 
   model = Model.create_model(adj=torch.Tensor(A), opt=args)
   model = to_device(model, device)
