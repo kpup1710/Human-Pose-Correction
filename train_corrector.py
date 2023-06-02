@@ -1,9 +1,9 @@
 import torch
 import numpy as np
+import logging
 from utils import *
 
-
-
+logger = logging.getLogger('base')
 def loss_batch_2(model, loss_func, xb, yb, opt=None, metric=None, device='cuda'):
     # Generate predictions
     yb_oh = to_onehot(yb, 22).unsqueeze(1).to(device)
@@ -83,11 +83,12 @@ def train_corrector(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, l
         
         # Print progress
         if metric is None:
-            print('Epoch [{} / {}], train_loss: {:4f}, pb_loss: {:4f}, dist_loss: {:4f}'
-                  .format(epoch + 1, epochs, train_loss, pb_loss, dist_loss))
+            messages = 'Epoch [{} / {}], train_loss: {:4f}, pb_loss: {:4f}, dist_loss: {:4f}'\
+                  .format(epoch + 1, epochs, train_loss, pb_loss, dist_loss)
         else:
-            print('Epoch [{} / {}], train_loss: {:4f}, val_loss:{:4f}, val_{}: {:4f}'
-                  .format(epoch + 1, epochs, train_loss, val_loss, metric.__name__, val_metric))
+            messages = 'Epoch [{} / {}], train_loss: {:4f}, val_loss:{:4f}, val_{}: {:4f}'\
+                  .format(epoch + 1, epochs, train_loss, val_loss, metric.__name__, val_metric)
+        logger.info(messages)
     return train_losses, val_losses, val_metrics
 
 

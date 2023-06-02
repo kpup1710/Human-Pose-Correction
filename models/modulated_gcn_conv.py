@@ -19,7 +19,7 @@ class ModulatedGraphConv(nn.Module):
 
         self.W = nn.Parameter(torch.zeros(size=(2, in_features, out_features), dtype=torch.float))
         nn.init.xavier_uniform_(self.W.data, gain=1.414)
-
+        # print("debuggg", adj.size)
         self.M = nn.Parameter(torch.ones(size=(adj.size(0), out_features), dtype=torch.float))
 
         self.adj = adj

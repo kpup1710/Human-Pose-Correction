@@ -3,6 +3,9 @@ import torch.nn as nn
 import os 
 import numpy as np
 import tqdm as tqdm
+import logging
+
+logger = logging.getLogger('base')
 
 def loss_batch(model, loss_func, xb, yb, opt=None, metric=None):
     # Generate predictions
@@ -76,11 +79,12 @@ def train_predictor(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, l
         
         # Print progress
         if metric is None:
-            print('Epoch [{} / {}], train_loss: {:4f}, val_loss:{:4f}'
-                  .format(epoch + 1, epochs, train_loss, val_loss))
+            messages = 'Epoch [{} / {}], train_loss: {:4f}, val_loss:{:4f}'\
+                .format(epoch + 1, epochs, train_loss, val_loss)
         else:
-            print('Epoch [{} / {}], train_loss: {:4f}, val_loss:{:4f}, val_{}: {:4f}'
-                  .format(epoch + 1, epochs, train_loss, val_loss, metric.__name__, val_metric))
+            messages = 'Epoch [{} / {}], train_loss: {:4f}, val_loss:{:4f}, val_{}: {:4f}'\
+                  .format(epoch + 1, epochs, train_loss, val_loss, metric.__name__, val_metric)
+        logger.info(messages)
     return train_losses, val_losses, val_metrics
 
 

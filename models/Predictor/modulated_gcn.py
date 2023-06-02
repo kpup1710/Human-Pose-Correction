@@ -1,8 +1,8 @@
 from __future__ import absolute_import
 
 import torch.nn as nn
-from modulated_gcn_conv import ModulatedGraphConv
-from graph_non_local import GraphNonLocal
+from ..modulated_gcn_conv import ModulatedGraphConv
+from .graph_non_local import GraphNonLocal
 import functools
 
 class _GraphConv(nn.Module):
@@ -57,8 +57,9 @@ class _GraphNonLocal(nn.Module):
         return out
 
 
+
 class ModulatedGCN(nn.Module):
-    def __init__(self, adj, hid_dim, coords_dim=(2, 3), num_layers=4, nodes_group=None, p_dropout=None):
+    def __init__(self, adj, hid_dim, coords_dim=(2, 3), num_layers=4, nodes_group=None, p_dropout=None, num_classes=82):
         super(ModulatedGCN, self).__init__()
 
         _gconv_input = [_GraphConv(adj, coords_dim[0], hid_dim, p_dropout=p_dropout)]
@@ -83,13 +84,19 @@ class ModulatedGCN(nn.Module):
             for i in range(num_layers):
                 _gconv_layers.append(_ResGraphConv(adj, hid_dim, hid_dim, hid_dim, p_dropout=p_dropout))
                 _gconv_layers.append(_GraphNonLocal(hid_dim, grouped_order, restored_order, group_size))
-
+        self.reg_dim = coords_dim[1]*18
         self.gconv_input = nn.Sequential(*_gconv_input)
         self.gconv_layers = nn.Sequential(*_gconv_layers)
         self.gconv_output = ModulatedGraphConv(hid_dim, coords_dim[1], adj)
+        self.linear1 = nn.Linear(self.reg_dim, 512)
+        self.linear2 = nn.Linear(512, num_classes)
 
     def forward(self, x):
         out = self.gconv_input(x)
         out = self.gconv_layers(out)
         out = self.gconv_output(out)
-        return out
+        tokens = out.clone()
+        out = out.view(-1, self.reg_dim)
+        out = self.linear1(out)
+        out = self.linear2(out)
+        return out, tokens

@@ -4,14 +4,14 @@ import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.dataloader import DataLoader
 import argparse
-from .data.dataset import TrainDataset, split_indices
+from data.dataset import TrainDataset, split_indices
 import models as Model
 from train_predictor import *
 from train_corrector import *
 from utils import *
+import logging
 
-
-if __name__ == "main":
+if __name__ == "__main__":
   # Experiment options
   parser = argparse.ArgumentParser()
   parser.add_argument('--name', type=str, default='workout')
@@ -23,6 +23,10 @@ if __name__ == "main":
                         help='Run either train(training) or val(generation)', default='train')
   parser.add_argument('-gpu', '--gpu_ids', type=str, default=None)
   parser.add_argument('--device', type=str, choices=['cuda', 'cpu'], default='cpu')
+  parser.add_argument('--epoch_pred', type=int, default=50, help='number of epoch(s) to train predictor')
+  parser.add_argument('--epoch_cor', type=int, default=50, help='number of epoch(s) to train corrector')
+  parser.add_argument('--lr_pred', type=float, default=4e-3, help='learning rate to train predictor')
+  parser.add_argument('--lr_cor', type=float, default=3e-3, help='learning rate to train corrector')
 
   # model options
     # predictor options
@@ -46,10 +50,10 @@ if __name__ == "main":
 
   # parse configs
   args = parser.parse_args()
-  device = args['device']
-  checkpoints_path = f'checkpoints/' + args['name'] + '/'
-  normal_dataset = TrainDataset(json_path=args['data_path'], name=args['name'])
-  
+  device = args.device
+  checkpoints_path = f'checkpoints/' + args.name + '/'
+
+  logger = logging.getLogger('base')
   edge = [ [1, 1, 2, 3, 5, 6, 1, 8, 9, 1, 11, 12, 1, 0, 14, 0, 15, 2, 5],  
     [2, 5, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 0, 14, 16, 15, 17, 16, 17],
     ]
@@ -59,11 +63,17 @@ if __name__ == "main":
       A[i,j] = 1
       A[j, i] = 1
   
-  
-  # predictor = ModulatedGCN(adj=torch.tensor(A), hid_dim=128, coords_dim=(2, 128), num_layers=6, nodes_group=None, p_dropout=None, num_classes=22).double()
-  model = Model.create_model(args)
-  model = to_device(model, device)
 
+  device = get_default_device()
+  logger.info(str(device) + "is available")
+
+  model = Model.create_model(adj=torch.Tensor(A), opt=args)
+  model = to_device(model, device)
+  logger.info("Initialized model and put model to device")
+
+  # Train predictor
+  normal_dataset = TrainDataset(json_path=args.data_path, name=args.name)
+  logger.info('Initialized normal dataset')
 
   val_pct = 0.15
   rand_seed = 42
@@ -81,23 +91,25 @@ if __name__ == "main":
   test_sampler = SubsetRandomSampler(test_indices)
   test_dl_pred = DataLoader(normal_dataset, batch_size, sampler=test_sampler)
   
-  # Train predictor
-  num_epochs_pred = 50
+  num_epochs_pred = args.epoch_pred
   opt_fn = torch.optim.Adam
-  lr_pred = 0.004
+  lr_pred = args.lr_pred
   
+  logger.info("Start training predictor")
   pred_train_losses, pred_val_losses, pred_val_metrics = his= train_predictor(num_epochs_pred, model.predictor, loss_func=F.cross_entropy,  train_dl=train_dl_pred, valid_dl=val_dl_pred, opt_fn=opt_fn, lr=lr_pred, metric=accuracy, PATH=checkpoints_path)
   
   
   # Train corrector
-  noised_dataset = TrainDataset(json_path=args['noised_data_path'])
+  noised_dataset = TrainDataset(json_path=args.noised_data_path, name='workout')
+  logger.info("Initialized noised dataset")
 
-  num_epochs_corr = 50
-  lr_corr = 0.003
+  num_epochs_corr = args.epoch_cor
+  lr_corr = args.lr_cor
   loss = yoga_loss()
 
-  train_dl = DataLoader(noised_dataset, batch_size, sampler=train_sampler)
-  val_dl_pred = DataLoader(noised_dataset, batch_size, sampler=val_sampler)
-  test_dl_pred = DataLoader(noised_dataset, batch_size, sampler=test_sampler)
+  train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler)
+  val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler)
+  test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler)
 
-  his= train_corrector(num_epochs_corr, model, loss_func=loss, train_dl=train_dl, valid_dl=val_dl, opt_fn=opt_fn, lr=lr_corr, metric=accuracy, PATH=checkpoints_path)
+  logger.info("Start training corrector")
+  his= train_corrector(num_epochs_corr, model, loss_func=loss, train_dl=train_dl_cor, valid_dl=val_dl_cor, opt_fn=opt_fn, lr=lr_corr, metric=accuracy, PATH=checkpoints_path)

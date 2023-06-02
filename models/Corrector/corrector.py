@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from .vit import Transformer
-from Predictor.modulated_gcn_conv import ModulatedGraphConv
+from ..modulated_gcn_conv import ModulatedGraphConv
 from torch.nn import Parameter
 
 class Corrector(nn.Module):
