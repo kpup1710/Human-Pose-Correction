@@ -15,16 +15,19 @@ class Corrector(nn.Module):
         self.mlp_dim = mlp_dim
         self.dropout = dropout
         self.transfromer = Transformer(self.dim_enc, self.depth, self.heads, self.dim_head, self.mlp_dim, self.dropout)
-        self.label_emb = nn.Linear(num_labels, self.dim_enc)
+        self.label_emb = nn.Linear(num_labels, self.dim_enc).double()
         self.pos_embedding = nn.Parameter(torch.randn(1, num_tokens + 1, dim_enc))
         self.mlp = ModulatedGraphConv(in_features=self.dim_enc, out_features=out_dim, adj=self.adj)
 
     def forward(self, label, skt):
-        embed_lb = self.label_emb(label)
+        try:
+            embed_lb = self.label_emb(label)
+        except:
+            print(f'hehehe--------------{label.dtype}')
         # print(embed_lb.shape, skt.shape)
         x = torch.concat((embed_lb, skt), dim=1)
         x += self.pos_embedding
-        x = self.transfromer(x)
+        x = self.transfromer(x.float())
         out = self.mlp(x[:,1:,:])
         return out
 

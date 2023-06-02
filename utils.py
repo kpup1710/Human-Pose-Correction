@@ -40,7 +40,7 @@ def to_onehot(a, num_classes=22):
 class yoga_loss(nn.Module):
   def __init__(self):
     super().__init__()
-    self.L1Loss = nn.L1Loss(size_average=True)
+    self.L1Loss = nn.L1Loss(reduction='mean')
     
   def mpjpe(self, predicted, target):
     """
