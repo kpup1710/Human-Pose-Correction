@@ -22,7 +22,7 @@ if __name__ == "__main__":
                         help='JSON file for noised data')
   parser.add_argument('-p', '--phase', type=str, choices=['train', 'val'],
                         help='Run either train(training) or val(generation)', default='train')
-  parser.add_argument('-gpu', '--gpu_ids', type=str, default=None)
+  parser.add_argument('-gpu', '--gpu_ids', type=str, default='0')
   parser.add_argument('--device', type=str, choices=['cuda', 'cpu'], default='cpu')
   parser.add_argument('--epoch_pred', type=int, default=50, help='number of epoch(s) to train predictor')
   parser.add_argument('--epoch_cor', type=int, default=50, help='number of epoch(s) to train corrector')
@@ -64,6 +64,10 @@ if __name__ == "__main__":
   logger.setLevel(logging.INFO)
   # logger.info('Protocol problem: %s', 'connection reset', extra=d)
   
+  # logging
+  torch.backends.cudnn.enabled = True
+  torch.backends.cudnn.benchmark = True
+  os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_ids
   edge = [ [1, 1, 2, 3, 5, 6, 1, 8, 9, 1, 11, 12, 1, 0, 14, 0, 15, 2, 5],  
     [2, 5, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 0, 14, 16, 15, 17, 16, 17],
     ]
@@ -101,6 +105,9 @@ if __name__ == "__main__":
   test_sampler = SubsetRandomSampler(test_indices)
   test_dl_pred = DataLoader(normal_dataset, batch_size, sampler=test_sampler)
   
+  train_dl_pred = DeviceDataLoader(train_dl_pred, device)
+  val_dl_pred = DeviceDataLoader(val_dl_pred, device)
+
   num_epochs_pred = args.epoch_pred
   opt_fn = torch.optim.Adam
   lr_pred = args.lr_pred
@@ -110,6 +117,8 @@ if __name__ == "__main__":
   
   
   # Train corrector
+  model.load_predictor(path=checkpoints_path + 'best_predictor.pth')
+  logger.info('Loaded predictor and set grad to False')
   noised_dataset = TrainDataset(json_path=args.noised_data_path, name='workout')
   logger.info("Initialized noised dataset")
 
@@ -117,9 +126,22 @@ if __name__ == "__main__":
   lr_corr = args.lr_cor
   loss = yoga_loss()
 
-  train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler)
-  val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler)
-  test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler)
+  train_indices_cor, val_indices_cor, test_indices_cor = split_indices(len(noised_dataset), val_pct, rand_seed)
+  
+  batch_size = 128
+  # Training sampler and data loader
+  train_sampler_cor = SubsetRandomSampler(train_indices_cor)
+  train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler_cor)
+  
+  # Validation set and data loader
+  val_sampler_cor = SubsetRandomSampler(val_indices_cor)
+  val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler_cor)
+  
+  test_sampler_cor = SubsetRandomSampler(test_indices_cor)
+  test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler_cor)
+
+  train_dl_cor = DeviceDataLoader(train_dl_cor, device)
+  val_dl_cor = DeviceDataLoader(val_dl_cor, device)
 
   logger.info("Start training corrector")
   his= train_corrector(num_epochs_corr, model, loss_func=loss, train_dl=train_dl_cor, valid_dl=val_dl_cor, opt_fn=opt_fn, lr=lr_corr, metric=accuracy, PATH=checkpoints_path)

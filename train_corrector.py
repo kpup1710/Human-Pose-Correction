@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import logging
+from tqdm.auto import tqdm
 from utils import *
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ def train_corrector(epochs, model, loss_func, train_dl, valid_dl, opt_fn=None, l
     for epoch in range(epochs):
         # Training
         model.train()
-        for xb, yb in train_dl:
+        for xb, yb in tqdm(train_dl):
             train_loss, pb_loss, dist_loss,_,_ = loss_batch_2(model, loss_func, xb, yb, opt)
             # print(train_loss)
         # Evaluation
