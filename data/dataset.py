@@ -9,7 +9,7 @@ import numpy as np
 
 class TrainDataset(Dataset):
 
-    def __init__(self, json_path: str, name='workout') -> None:
+    def __init__(self, json_path: str, name='workout', transforms=None) -> None:
         super(TrainDataset, self).__init__()
         self.json_path = json_path
         self.pose = 'pose'
@@ -18,7 +18,7 @@ class TrainDataset(Dataset):
             self.pose = 'pose'
         elif name == 'workout':
             self.pose = 'label'
-        # self.transforms = transforms
+        self.transforms = transforms
         self.label_to_index, self.num_classes = self.classes_to_idx()
 
     def get_img_list(self):
@@ -51,6 +51,9 @@ class TrainDataset(Dataset):
 
         a_label_index = self.label_to_index[a_label]
         # return torch.concat((a_pose_tensor[:,:2], a_pose_tensor[:,-1].unsqueeze_(-1)), dim=1), a_label_index
+
+        if self.transforms:
+            a_pose_tensor = self.transforms(a_pose_tensor)
         return a_pose_tensor[:,:2], a_label_index
     # def get_img_tensor(self, img_path):
     #     img = Image.open(img_path)
@@ -72,3 +75,12 @@ def split_indices(n, val_pct=0.1, seed=99):
     idxs = np.random.permutation(n)
     # Pick first n_val indices for validation set
     return idxs[n_val + n_test:], idxs[:n_val], idxs[n_val:n_val+n_test]
+
+def normalize(pose):
+    pose /= 0.5 *(torch.norm(pose[1]-pose[11]) + torch.norm(pose[1]- pose[8]))
+    return pose 
+
+if __name__ == '__main__':
+    dataset = TrainDataset(json_path='../dataset/proccessed_workout.json', transforms=normalize)
+
+    print(dataset[0])
