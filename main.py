@@ -5,12 +5,13 @@ import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.dataloader import DataLoader
 import argparse
-from data.dataset import TrainDataset, split_indices
+from data.dataset import TrainDataset, split_indices, normalize
 import models as Model
 from train_predictor import *
 from train_corrector import *
 from utils import *
 import logging
+import json
 
 if __name__ == "__main__":
   # Experiment options
@@ -85,9 +86,13 @@ if __name__ == "__main__":
   model = to_device(model, device)
   logger.info("Initialized model and put model to device")
 
+
   # Train predictor
-  normal_dataset = TrainDataset(json_path=args.data_path, name=args.name)
+  normal_dataset = TrainDataset(json_path=args.data_path, name=args.name, transforms=None)
   logger.info('Initialized normal dataset')
+
+  noised_dataset = TrainDataset(json_path=args.noised_data_path, name=args.name, transforms=None)
+  logger.info("Initialized noised dataset")
 
   val_pct = 0.15
   rand_seed = 42
@@ -96,7 +101,7 @@ if __name__ == "__main__":
   batch_size = 128
   # Training sampler and data loader
   train_sampler = SubsetRandomSampler(train_indices)
-  train_dl_pred = DataLoader(normal_dataset, batch_size, sampler=train_sampler)
+  train_dl_pred = DataLoader(normal_dataset, batch_size, sampler=train_sampler, num_workers=8)
   
   # Validation set and data loader
   val_sampler = SubsetRandomSampler(val_indices)
@@ -111,37 +116,64 @@ if __name__ == "__main__":
   num_epochs_pred = args.epoch_pred
   opt_fn = torch.optim.Adam
   lr_pred = args.lr_pred
-  
-  logger.info("Start training predictor")
-  pred_train_losses, pred_val_losses, pred_val_metrics = his= train_predictor(num_epochs_pred, model.predictor, loss_func=F.cross_entropy,  train_dl=train_dl_pred, valid_dl=val_dl_pred, opt_fn=opt_fn, lr=lr_pred, metric=accuracy, PATH=checkpoints_path)
-  
-  
-  # Train corrector
-  model.load_predictor(path=checkpoints_path + 'best_predictor.pth')
-  logger.info('Loaded predictor and set grad to False')
-  noised_dataset = TrainDataset(json_path=args.noised_data_path, name='workout')
-  logger.info("Initialized noised dataset")
 
-  num_epochs_corr = args.epoch_cor
-  lr_corr = args.lr_cor
-  loss = yoga_loss()
-
-  train_indices_cor, val_indices_cor, test_indices_cor = split_indices(len(noised_dataset), val_pct, rand_seed)
+  if args.phase == 'train':
+    # Train corrector
   
-  batch_size = 128
-  # Training sampler and data loader
-  train_sampler_cor = SubsetRandomSampler(train_indices_cor)
-  train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler_cor)
-  
-  # Validation set and data loader
-  val_sampler_cor = SubsetRandomSampler(val_indices_cor)
-  val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler_cor)
-  
-  test_sampler_cor = SubsetRandomSampler(test_indices_cor)
-  test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler_cor)
+    num_epochs_corr = args.epoch_cor
+    lr_corr = args.lr_cor
+    loss = yoga_loss()
 
-  train_dl_cor = DeviceDataLoader(train_dl_cor, device)
-  val_dl_cor = DeviceDataLoader(val_dl_cor, device)
+    train_indices_cor, val_indices_cor, test_indices_cor = split_indices(len(noised_dataset), val_pct, rand_seed)
 
-  logger.info("Start training corrector")
-  his= train_corrector(num_epochs_corr, model, loss_func=loss, train_dl=train_dl_cor, valid_dl=val_dl_cor, opt_fn=opt_fn, lr=lr_corr, metric=accuracy, PATH=checkpoints_path)
+    batch_size = 128
+    # Training sampler and data loader
+    train_sampler_cor = SubsetRandomSampler(train_indices_cor)
+    train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler_cor, num_workers=8)
+
+    # Validation set and data loader
+    val_sampler_cor = SubsetRandomSampler(val_indices_cor)
+    val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler_cor)
+
+    test_sampler_cor = SubsetRandomSampler(test_indices_cor)
+    test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler_cor)
+
+    train_dl_cor = DeviceDataLoader(train_dl_cor, device)
+    val_dl_cor = DeviceDataLoader(val_dl_cor, device)
+
+    logger.info("Start training predictor")
+    pred_train_losses, pred_val_losses, pred_val_metrics = train_predictor(num_epochs_pred, model.predictor, loss_func=F.cross_entropy,    train_dl=train_dl_pred, valid_dl=val_dl_pred, opt_fn=opt_fn, lr=lr_pred, metric=accuracy, PATH=checkpoints_path)
+    model.load_predictor(path=checkpoints_path + 'best_predictor.pth')
+    logger.info('Loaded predictor and set grad to False')
+    logger.info("Start training corrector")
+    his= train_corrector(num_epochs_corr, model, loss_func=loss, train_dl=train_dl_cor, valid_dl=val_dl_cor, opt_fn=opt_fn, lr=lr_corr, metric=accuracy,  PATH=checkpoints_path)
+
+  elif args.phase == 'val':
+    model.predictor.load_state_dict(torch.load(checkpoints_path + 'best_predictor.pth'))
+    model.corrector.load_state_dict(torch.load(checkpoints_path + 'best_corrector.pth'))
+
+    label_to_index = noised_dataset.get_pose_index()
+    f = open(args.noised_data_path)
+    noised_data = json.load(f)
+
+    pose_pairs = []
+    for item in tqdm(noised_data[50000:]):
+      # print(item)
+      # break
+      xb = torch.Tensor(item['pose_landmarks'])[:,:2].to(device)
+      yb = torch.zeros((1,1, 22)).to(device)
+      yb[:,:,label_to_index[item['label']]] = 1
+      # print(yb)
+      # yb_oh = to_onehot(yb, 82).unsqueeze(1).to(device)
+
+      out_corr, corrected_pose = model([xb, yb])
+      to_save = {
+          'img_path': item['img_path'],
+          'pose': item['label'],
+          'init_pose': xb.cpu().detach().numpy().tolist(),
+          'corr_pose': corrected_pose.cpu().detach().numpy().tolist()
+      }
+      pose_pairs.append(to_save)
+
+    with open(checkpoints_path + 'pose_pairs.json', 'w') as f:
+        json.dump(pose_pairs, f)
