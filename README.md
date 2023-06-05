@@ -23,6 +23,10 @@ After that put the datasets into `./dataset` directory.
 Run the following command to start the training process
 
 ```
-python main.py
+python main.py --phase train
 
+```
+To evaluate
+```
+python main.py --phase val
 ```
