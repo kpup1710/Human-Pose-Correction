@@ -23,7 +23,7 @@ After that put the datasets into `./dataset` directory.
 Run the following command to start the training process
 
 ```
-python main.py --phase train --sub_phase 'pred'
+python main.py --phase train --sub_phase 'both'
 
 ```
 To evaluate
