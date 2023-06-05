@@ -87,7 +87,7 @@ if __name__ == "__main__":
   logger.info("Initialized model and put model to device")
 
 
-  # Train predictor
+  # Prepare datasets
   normal_dataset = TrainDataset(json_path=args.data_path, name=args.name, transforms=None)
   logger.info('Initialized normal dataset')
 
@@ -117,32 +117,29 @@ if __name__ == "__main__":
   opt_fn = torch.optim.Adam
   lr_pred = args.lr_pred
 
+  num_epochs_corr = args.epoch_cor
+  lr_corr = args.lr_cor
+  loss = yoga_loss()
+  train_indices_cor, val_indices_cor, test_indices_cor = split_indices(len(noised_dataset), val_pct, rand_seed)
+  batch_size = 128
+  # Training sampler and data loader
+  train_sampler_cor = SubsetRandomSampler(train_indices_cor)
+  train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler_cor, num_workers=8)
+  # Validation set and data loader
+  val_sampler_cor = SubsetRandomSampler(val_indices_cor)
+  val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler_cor)
+  test_sampler_cor = SubsetRandomSampler(test_indices_cor)
+  test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler_cor)
+  train_dl_cor = DeviceDataLoader(train_dl_cor, device)
+  val_dl_cor = DeviceDataLoader(val_dl_cor, device)
+
   if args.phase == 'train':
-    # Train corrector
+    # Train Predictor
   
-    num_epochs_corr = args.epoch_cor
-    lr_corr = args.lr_cor
-    loss = yoga_loss()
-
-    train_indices_cor, val_indices_cor, test_indices_cor = split_indices(len(noised_dataset), val_pct, rand_seed)
-
-    batch_size = 128
-    # Training sampler and data loader
-    train_sampler_cor = SubsetRandomSampler(train_indices_cor)
-    train_dl_cor = DataLoader(noised_dataset, batch_size, sampler=train_sampler_cor, num_workers=8)
-
-    # Validation set and data loader
-    val_sampler_cor = SubsetRandomSampler(val_indices_cor)
-    val_dl_cor = DataLoader(noised_dataset, batch_size, sampler=val_sampler_cor)
-
-    test_sampler_cor = SubsetRandomSampler(test_indices_cor)
-    test_dl_cor = DataLoader(noised_dataset, batch_size, sampler=test_sampler_cor)
-
-    train_dl_cor = DeviceDataLoader(train_dl_cor, device)
-    val_dl_cor = DeviceDataLoader(val_dl_cor, device)
-
     logger.info("Start training predictor")
     pred_train_losses, pred_val_losses, pred_val_metrics = train_predictor(num_epochs_pred, model.predictor, loss_func=F.cross_entropy,    train_dl=train_dl_pred, valid_dl=val_dl_pred, opt_fn=opt_fn, lr=lr_pred, metric=accuracy, PATH=checkpoints_path)
+
+    # Train Corrector
     model.load_predictor(path=checkpoints_path + 'best_predictor.pth')
     logger.info('Loaded predictor and set grad to False')
     logger.info("Start training corrector")
@@ -152,6 +149,12 @@ if __name__ == "__main__":
     model.predictor.load_state_dict(torch.load(checkpoints_path + 'best_predictor.pth'))
     model.corrector.load_state_dict(torch.load(checkpoints_path + 'best_corrector.pth'))
 
+    pred_acc_over_nos = evaluate(model.predictor,F.cross_entropy, test_dl_cor, metric=accuracy)
+    logger.info(f'Precision of predictor over nosised data: {pred_acc_over_nos}')
+
+    cor_acc_over_nos = evaluate_2(model, loss, test_dl_cor, metric=accuracy)
+    logger.info(f'Precision of corrector over nosised data: {cor_acc_over_nos}')
+    
     label_to_index = noised_dataset.get_pose_index()
     f = open(args.noised_data_path)
     noised_data = json.load(f)
